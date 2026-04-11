@@ -124,4 +124,25 @@ class ContextFactoryTest {
     assertEquals(Optional.empty(), contextFactory.currentContext());
   }
 
+  @Test
+  void clearAllContexts_insideWithRunnable_finallySurvivesEmptyStack() {
+    contextFactory.withRunnable(() -> {
+      contextFactory.clearAllContexts();
+      assertEquals(Optional.empty(), contextFactory.currentContext());
+    });
+    // The finally block in withRunnable encounters an empty stack via ifNotEmpty — no exception thrown.
+    assertEquals(Optional.empty(), contextFactory.currentContext());
+  }
+
+  @Test
+  void clearAllContexts_insideWithSupplier_finallySurvivesEmptyStack() {
+    String result = contextFactory.withSupplier(() -> {
+      contextFactory.clearAllContexts();
+      assertEquals(Optional.empty(), contextFactory.currentContext());
+      return "ok";
+    });
+    assertEquals("ok", result);
+    assertEquals(Optional.empty(), contextFactory.currentContext());
+  }
+
 }

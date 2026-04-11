@@ -45,7 +45,7 @@ tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
     violationRules {
         rule {
             element = "CLASS"
-            includes = listOf("com.codeheadsystems.microbus.MessageFactory", "com.codeheadsystems.microbus.ContextFactory")
+            includes = listOf("com.codeheadsystems.microbus.MessageFactory", "com.codeheadsystems.microbus.ContextFactory", "com.codeheadsystems.microbus.MicroBus")
 
             limit {
                 counter = "LINE"
