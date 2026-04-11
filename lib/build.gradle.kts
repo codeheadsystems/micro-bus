@@ -25,6 +25,8 @@ dependencies {
     // This dependency is used internally, and not exposed to consumers on their own compile classpath.
     implementation(libs.jug)
     api(libs.javax.inject)
+    api(libs.slf4j.api)
+    testRuntimeOnly(libs.slf4j.simple)
 }
 
 // Apply a specific Java toolchain to ease working on different environments.
@@ -43,7 +45,7 @@ tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
     violationRules {
         rule {
             element = "CLASS"
-            includes = listOf("com.codeheadsystems.microbus.MessageFactory")
+            includes = listOf("com.codeheadsystems.microbus.MessageFactory", "com.codeheadsystems.microbus.ContextFactory")
 
             limit {
                 counter = "LINE"
