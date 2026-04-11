@@ -1,6 +1,7 @@
 package com.codeheadsystems.microbus;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
@@ -26,7 +27,8 @@ public class MicroBus<D> implements Bus<D> {
     this(contextFactory, Executors.newCachedThreadPool());
   }
 
-  public MicroBus(ContextFactory contextFactory, ExecutorService executorService) {
+  public MicroBus(ContextFactory contextFactory,
+                  ExecutorService executorService) {
     this.contextFactory = Objects.requireNonNull(contextFactory);
     this.executorService = Objects.requireNonNull(executorService);
   }
@@ -64,24 +66,55 @@ public class MicroBus<D> implements Bus<D> {
     contextFactory.withRunnable(() -> {
       LOGGER.debug("[{}] Starting dispatching message {}", contextFactory.contextUuid(), message);
       Context context = contextFactory.currentContext().orElseThrow();
-      for (ContextFiller<D> filler : contextFillers) {
-        try {
-          LOGGER.debug("[{}] filling context from {}", contextFactory.contextUuid(), filler);
-          filler.fillContext(message.data(), context);
-        } catch (Exception e) {
-          LOGGER.error("ContextFiller threw exception for message {}: {}", message.uuid(), e.getMessage(), e);
-        }
-      }
+      Map<String, Object> properties = fillContext(message, context);
       for (Consumer<Message<D>> subscriber : subscribers) {
-        try {
-          LOGGER.debug("[{}] publishing to message {}", contextFactory.contextUuid(), subscriber);
-          subscriber.accept(message);
-        } catch (Exception e) {
-          LOGGER.error("Subscriber threw exception for message {}: {}", message.uuid(), e.getMessage(), e);
+        if (message.async()) {
+          dispatchAsync(message, subscriber, properties);
+        } else {
+          dispatchSync(message, subscriber);
         }
       }
       LOGGER.debug("[{}] Finished dispatching message {}", contextFactory.contextUuid(), message);
     });
+  }
+
+  private void dispatchSync(final Message<D> message,
+                            final Consumer<Message<D>> subscriber) {
+    LOGGER.debug("[{}] dispatching message {} synchronously to {}", contextFactory.contextUuid(), message.uuid(), subscriber);
+    try {
+      subscriber.accept(message);
+    } catch (Exception e) {
+      LOGGER.error("Subscriber threw exception for message {}: {}", message.uuid(), e.getMessage(), e);
+    }
+  }
+
+  private void dispatchAsync(final Message<D> message,
+                             final Consumer<Message<D>> subscriber,
+                             final Map<String, Object> properties) {
+    LOGGER.debug("[{}] dispatching message {} asynchronously to {}", contextFactory.contextUuid(), message, subscriber);
+    executorService.submit(() -> {
+      contextFactory.withRunnable(() -> {
+        contextFactory.currentContext().ifPresent(ctx -> ctx.properties().putAll(properties));
+        try {
+          subscriber.accept(message);
+        } catch (Exception e) {
+          LOGGER.error("Subscriber threw exception for message {}: {}", message.uuid(), e.getMessage(), e);
+        }
+      });
+    });
+  }
+
+  private Map<String, Object> fillContext(final Message<D> message,
+                                          final Context context) {
+    for (ContextFiller<D> filler : contextFillers) {
+      try {
+        LOGGER.debug("[{}] filling context from {}", contextFactory.contextUuid(), filler);
+        filler.fillContext(message.data(), context);
+      } catch (Exception e) {
+        LOGGER.error("ContextFiller threw exception for message {}: {}", message.uuid(), e.getMessage(), e);
+      }
+    }
+    return context.properties();
   }
 
 }

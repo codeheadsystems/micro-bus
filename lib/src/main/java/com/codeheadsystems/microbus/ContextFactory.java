@@ -1,6 +1,5 @@
 package com.codeheadsystems.microbus;
 
-import java.util.HashMap;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Stack;
@@ -77,7 +76,7 @@ public class ContextFactory {
   }
 
   private Context generateContext() {
-    return new Context(uuidSupplier.get(), new HashMap<>());
+    return new Context(uuidSupplier.get());
   }
 
   private void ifNotEmpty(Consumer<Stack<Context>> consumer) {
