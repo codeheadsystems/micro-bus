@@ -2,7 +2,9 @@ package com.codeheadsystems.microbus;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.lang.reflect.Field;
 import java.util.Optional;
+import java.util.Stack;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -143,6 +145,40 @@ class ContextFactoryTest {
     });
     assertEquals("ok", result);
     assertEquals(Optional.empty(), contextFactory.currentContext());
+  }
+
+  @Test
+  void withContextSet_emptyStack_logsWarningButDoesNotThrow() {
+    // The finally block handles the case where the stack was cleared during execution.
+    // This can't happen through the public API alone, so we use reflection.
+    contextFactory.withRunnable(() -> {
+      getStack().clear();
+    });
+    assertEquals(Optional.empty(), contextFactory.currentContext());
+  }
+
+  @Test
+  void withContextSet_mismatchedContext_logsWarningButDoesNotThrow() {
+    // The finally block handles the case where a different context is on top of the stack.
+    // This can't happen through the public API alone, so we use reflection.
+    contextFactory.withRunnable(() -> {
+      Stack<Context> stack = getStack();
+      stack.pop();
+      stack.push(new Context(UUID.randomUUID()));
+    });
+    assertEquals(Optional.empty(), contextFactory.currentContext());
+  }
+
+  @SuppressWarnings("unchecked")
+  private Stack<Context> getStack() {
+    try {
+      Field field = ContextFactory.class.getDeclaredField("threadLocalContext");
+      field.setAccessible(true);
+      ThreadLocal<Stack<Context>> threadLocal = (ThreadLocal<Stack<Context>>) field.get(contextFactory);
+      return threadLocal.get();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
 }

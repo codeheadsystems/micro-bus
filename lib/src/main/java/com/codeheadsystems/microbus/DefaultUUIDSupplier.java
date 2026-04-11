@@ -5,6 +5,9 @@ import com.fasterxml.uuid.impl.TimeBasedEpochGenerator;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+/**
+ * Uses a normal random object for the UUID. Create your own with a SecureRandom if needed.
+ */
 public class DefaultUUIDSupplier implements Supplier<UUID> {
 
   private final TimeBasedEpochGenerator generator;

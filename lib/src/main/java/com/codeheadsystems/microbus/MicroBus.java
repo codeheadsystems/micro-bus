@@ -7,15 +7,21 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Basic implementation for a buss.
+ *
+ * @param <D> data used for the messages. This can be as simple or complex as you want.
+ */
 public class MicroBus<D> implements Bus<D> {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(MicroBus.class);
 
   private final List<Consumer<Message<D>>> subscribers = new CopyOnWriteArrayList<>();
-  private final List<ContextFiller<D>> contextFillers = new CopyOnWriteArrayList<>();
+  private final List<Function<D, Map<String, Object>>> contextFillers = new CopyOnWriteArrayList<>();
   private final ContextFactory contextFactory;
   private final ExecutorService executorService;
 
@@ -31,13 +37,13 @@ public class MicroBus<D> implements Bus<D> {
   }
 
   @Override
-  public void register(ContextFiller<D> filler) {
+  public void registerContextFiller(Function<D, Map<String, Object>> filler) {
     LOGGER.debug("register({})", filler);
     contextFillers.add(Objects.requireNonNull(filler));
   }
 
   @Override
-  public void unregister(ContextFiller<D> filler) {
+  public void unregisterContextFiller(Function<D, Map<String, Object>> filler) {
     LOGGER.debug("unregister({})", filler);
     contextFillers.remove(filler);
   }
@@ -67,9 +73,12 @@ public class MicroBus<D> implements Bus<D> {
   private void dispatch(Message<D> message) {
     contextFactory.withRunnable(() -> {
       LOGGER.debug("[{}] dispatch({})", contextFactory.contextUuid(), message.uuid());
+      // Fill up the context with any fillers first. Store the results we get.
       Map<String, Object> properties = contextFactory.currentContext()
-          .map(ctx ->  fillContext(message, ctx))
-          .orElseThrow();
+          .map(ctx -> fillContext(message, ctx))
+          .orElseThrow(); // should never happen.
+      // Now call each subscriber with the message and note context.
+      // Remember we have to copy the properties from the current context if we're doing async stuff.
       for (Consumer<Message<D>> subscriber : subscribers) {
         if (message.async()) {
           dispatchAsync(message, subscriber, properties);
@@ -111,10 +120,10 @@ public class MicroBus<D> implements Bus<D> {
   private Map<String, Object> fillContext(final Message<D> message,
                                           final Context context) {
     LOGGER.debug("[{}] fillContext({})", contextFactory.contextUuid(), message.uuid());
-    for (ContextFiller<D> filler : contextFillers) {
+    for (Function<D, Map<String, Object>> filler : contextFillers) {
       try {
         LOGGER.trace("[{}] filling context from {} for {}", contextFactory.contextUuid(), filler, message.uuid());
-        filler.fillContext(message.data(), context);
+        context.properties().putAll(filler.apply(message.data()));
       } catch (Exception e) {
         LOGGER.error("ContextFiller threw exception for message {}: {}", message.uuid(), filler, e);
       }

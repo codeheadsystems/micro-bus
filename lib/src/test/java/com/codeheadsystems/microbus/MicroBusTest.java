@@ -4,12 +4,14 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -184,13 +186,13 @@ class MicroBusTest {
   }
 
   @Test
-  void register_nullFiller_throws() {
-    assertThrows(NullPointerException.class, () -> bus.register(null));
+  void registerContextFiller_nullFiller_throws() {
+    assertThrows(NullPointerException.class, () -> bus.registerContextFiller(null));
   }
 
   @Test
-  void register_fillerPopulatesContextBeforeSubscribers() {
-    bus.register((data, context) -> context.properties().put("key", data.toUpperCase()));
+  void registerContextFiller_fillerPopulatesContextBeforeSubscribers() {
+    bus.registerContextFiller(data -> Map.of("key", data.toUpperCase()));
 
     List<Object> captured = new ArrayList<>();
     bus.subscribe(msg -> captured.add(contextFactory.currentContext().orElseThrow().properties().get("key")));
@@ -201,9 +203,9 @@ class MicroBusTest {
   }
 
   @Test
-  void register_multipleFillers_allInvoked() {
-    bus.register((data, context) -> context.properties().put("a", "1"));
-    bus.register((data, context) -> context.properties().put("b", "2"));
+  void registerContextFiller_multipleFillers_allInvoked() {
+    bus.registerContextFiller(data -> Map.of("a", "1"));
+    bus.registerContextFiller(data -> Map.of("b", "2"));
 
     List<Object> capturedA = new ArrayList<>();
     List<Object> capturedB = new ArrayList<>();
@@ -220,9 +222,9 @@ class MicroBusTest {
   }
 
   @Test
-  void register_fillerException_doesNotStopOtherFillersOrSubscribers() {
-    bus.register((data, context) -> { throw new RuntimeException("filler boom"); });
-    bus.register((data, context) -> context.properties().put("survived", true));
+  void registerContextFiller_fillerException_doesNotStopOtherFillersOrSubscribers() {
+    bus.registerContextFiller(data -> { throw new RuntimeException("filler boom"); });
+    bus.registerContextFiller(data -> Map.of("survived", true));
 
     List<Object> captured = new ArrayList<>();
     bus.subscribe(msg -> captured.add(contextFactory.currentContext().orElseThrow().properties().get("survived")));
@@ -233,15 +235,15 @@ class MicroBusTest {
   }
 
   @Test
-  void unregister_removesFiller() {
-    ContextFiller<String> filler = (data, context) -> context.properties().put("key", "value");
-    bus.register(filler);
+  void unregisterContextFiller_removesFiller() {
+    Function<String, Map<String, Object>> filler = data -> Map.of("key", "value");
+    bus.registerContextFiller(filler);
 
     List<Object> captured = new ArrayList<>();
     bus.subscribe(msg -> captured.add(contextFactory.currentContext().orElseThrow().properties().get("key")));
 
     bus.publish(new Message<>("first", false, UUID_1));
-    bus.unregister(filler);
+    bus.unregisterContextFiller(filler);
     bus.publish(new Message<>("second", false, UUID_1));
 
     assertEquals(2, captured.size());
@@ -250,9 +252,9 @@ class MicroBusTest {
   }
 
   @Test
-  void register_async_fillerPopulatesContext() throws Exception {
+  void registerContextFiller_async_fillerPopulatesContext() throws Exception {
     CountDownLatch latch = new CountDownLatch(1);
-    bus.register((data, context) -> context.properties().put("async-key", data));
+    bus.registerContextFiller(data -> Map.of("async-key", data));
 
     List<Object> captured = new ArrayList<>();
     bus.subscribe(msg -> {

@@ -1,6 +1,8 @@
 package com.codeheadsystems.microbus;
 
+import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public interface Bus<D> {
 
@@ -10,9 +12,9 @@ public interface Bus<D> {
    *
    * @param filler for a context.
    */
-  void register(ContextFiller<D> filler);
+  void registerContextFiller(Function<D, Map<String, Object>> filler);
 
-  void unregister(ContextFiller<D> filler);
+  void unregisterContextFiller(Function<D, Map<String, Object>> filler);
 
   void publish(Message<D> message);
 
