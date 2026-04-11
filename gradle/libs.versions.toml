@@ -2,7 +2,7 @@
 # https://docs.gradle.org/current/userguide/version_catalogs.html#sec::toml-dependencies-format
 
 [versions]
-junit-jupiter = "6.0.1"
+junit-jupiter = "6.0.3"
 
 [libraries]
 jug = { module = 'com.fasterxml.uuid:java-uuid-generator', version = '5.2.0' }
