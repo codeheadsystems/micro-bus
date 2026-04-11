@@ -4,16 +4,19 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Stack;
 import java.util.UUID;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Singleton
 public class ContextFactory {
 
+  private static final Logger LOGGER = LoggerFactory.getLogger(ContextFactory.class);
+
   private final ThreadLocal<Stack<Context>> threadLocalContext;
-  private final Supplier<UUID> uuidSupplier;
+  private final Supplier<Context> contextSupplier;
 
   public ContextFactory() {
     this(new DefaultUUIDSupplier());
@@ -21,8 +24,9 @@ public class ContextFactory {
 
   @Inject
   public ContextFactory(Supplier<UUID> uuidSupplier) {
-    this.uuidSupplier = Objects.requireNonNull(uuidSupplier);
-    threadLocalContext = ThreadLocal.withInitial(Stack::new);
+    Objects.requireNonNull(uuidSupplier);
+    this.contextSupplier = () -> new Context(uuidSupplier.get());
+    this.threadLocalContext = ThreadLocal.withInitial(Stack::new);
   }
 
   /**
@@ -54,35 +58,37 @@ public class ContextFactory {
    * Removes the full stack of context.
    */
   public void clearAllContexts() {
+    LOGGER.info("Clearing all contexts"); // warn folks because this means something is wonky, or about to be.
     threadLocalContext.remove();
   }
 
   public <T> T withSupplier(Supplier<T> supplier) {
-    try {
-      threadLocalContext.get().push(generateContext());
-      return supplier.get();
-    } finally {
-      ifNotEmpty(Stack::pop);
-    }
+    return withContextSet(supplier);
   }
 
   public void withRunnable(Runnable runnable) {
-    try {
-      threadLocalContext.get().push(generateContext());
+    withContextSet(() -> {
       runnable.run();
+      return null;
+    });
+  }
+
+  private <T> T withContextSet(Supplier<T> supplier) {
+    final Context context = contextSupplier.get();
+    final Stack<Context> stack = threadLocalContext.get();
+    stack.push(context);
+    try {
+      return supplier.get();
     } finally {
-      ifNotEmpty(Stack::pop);
+      if (stack.isEmpty()) { // someone cleared the stack?
+        LOGGER.warn("Context stack is not empty after supplier execution, possible leak: {}", stack);
+      } else { // stack isn't empty
+        final Context old = stack.pop();
+        if (old != context) {  // Who's been messing with the stack?
+          LOGGER.warn("Incorrect context removed desired:{} removed:{}", context, old);
+        }
+      }
     }
   }
 
-  private Context generateContext() {
-    return new Context(uuidSupplier.get());
-  }
-
-  private void ifNotEmpty(Consumer<Stack<Context>> consumer) {
-    Stack<Context> stack = threadLocalContext.get();
-    if (!stack.isEmpty()) {
-      consumer.accept(stack);
-    }
-  }
 }

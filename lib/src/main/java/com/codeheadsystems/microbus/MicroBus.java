@@ -25,7 +25,7 @@ public class MicroBus<D> implements Bus<D> {
 
   public MicroBus(ContextFactory contextFactory,
                   ExecutorService executorService) {
-    LOGGER.debug("MicroBus()");
+    LOGGER.info("MicroBus()");
     this.contextFactory = Objects.requireNonNull(contextFactory);
     this.executorService = Objects.requireNonNull(executorService);
   }
