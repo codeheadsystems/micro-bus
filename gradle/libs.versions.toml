@@ -3,7 +3,7 @@
 
 [versions]
 junit-jupiter = "6.0.3"
-slf4j = "2.0.17"
+slf4j = "2.0.18"
 
 [libraries]
 jug = { module = 'com.fasterxml.uuid:java-uuid-generator', version = '5.2.0' }
